@@ -1,0 +1,57 @@
+---
+- hosts: vault
+  become: true
+  vars:
+    vault_version: 1.7.4
+    vault_download_url: https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_amd64.zip
+    vault_data_dir: /var/lib/vault
+    vault_config_dir: /etc/vault.d
+    vault_config_file: /etc/vault.d/vault.hcl
+    vault_token_file: /etc/vault-token
+    vault_listen_address: "0.0.0.0:8200"
+    vault_cluster_address: "https://{{ ansible_host }}:8201"
+    vault_api_addr: "https://{{ ansible_host }}:8200"
+    vault_secrets_path: "secrets/"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install unzip
+      apt:
+        name: unzip
+        state: present
+
+    - name: Download Vault
+      get_url:
+        url: "{{ vault_download_url }}"
+        dest: /tmp/vault.zip
+
+    - name: Extract Vault
+      unarchive:
+        src: /tmp/vault.zip
+        dest: /usr/local/bin/
+        copy: no
+        creates: /usr/local/bin/vault
+
+    - name: Create Vault directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+      with_items:
+        - "{{ vault_data_dir }}"
+        - "{{ vault_config_dir }}"
+
+    - name: Create Vault configuration file
+      template:
+        src: templates/vault.hcl.j2
+        dest: "{{ vault_config_file }}"
+        mode: '0600'
+
+    - name: Start Vault
+      systemd:
+        name: vault
+        state: started
+        enabled: yes

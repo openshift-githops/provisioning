@@ -1,0 +1,91 @@
+---
+- name: Install CodeReady Containers
+  hosts: crc-desktop
+  become: yes
+
+  vars:
+    crc_download_url: "https://mirror.openshift.com/pub/openshift-v4/clients/crc/latest/crc-linux-amd64.tar.xz"
+    crc_install_dir: "/opt/crc"
+    crc_path: "/usr/local/bin/crc"
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install dependencies
+      apt:
+        name:
+          - libvirt-clients
+          - libvirt-daemon-system
+          - qemu-kvm
+        state: present
+
+    - name: Create CRC installation directory
+      file:
+        path: "{{ crc_install_dir }}"
+        state: directory
+
+    - name: Download CRC tarball
+      get_url:
+        url: "{{ crc_download_url }}"
+        dest: "{{ crc_install_dir }}/crc.tar.xz"
+
+    - name: Extract CRC tarball
+      unarchive:
+        src: "{{ crc_install_dir }}/crc.tar.xz"
+        dest: "{{ crc_install_dir }}"
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Move CRC binary to system PATH
+      command: "ln -sf {{ crc_install_dir }}/crc {{ crc_path }}"                        
+  
+
+    - name: Check if crc is installed
+      command: crc version
+      register: crc_version
+
+    - name: Print crc version
+      debug:
+        var: crc_version.stdout_lines
+
+    - name: Setup CodeReady Containers
+      expect:
+        command: crc setup
+        responses:
+          "(?i)Would you like to enter a pull secret instead": no
+          "(?i)Would you like to create a new pull secret": no
+      register: crc_setup_output
+      failed_when: false
+
+    - name: Print crc setup output
+      debug:
+        var: crc_setup_output.stdout_lines        
+
+    - name: Install Ubuntu desktop packages
+      apt:
+        name:
+          - ubuntu-desktop
+          - gnome-session
+          - gnome-terminal
+          - nautilus
+          - firefox
+          - gedit
+          - gnome-control-center
+          - gnome-tweaks
+        state: latest
+
+    - name: Install OC client
+      apt:
+        name: openshift-client
+        state: present
+        update_cache: yes
+
+    - name: Install git
+      apt:
+        name: git
+        state: present        
+
+
